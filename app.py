@@ -16,71 +16,99 @@ st.title("📊 Customer Churn Prediction System")
 # ---------------- LOAD MODEL ----------------
 @st.cache_resource
 def load_model():
-    with open("best_churn_model.pkl", "rb") as file:
-        model = pickle.load(file)
-    return model
+    # Ensure the filename matches exactly what is in your repository
+    try:
+        with open("best_churn_model.pkl", "rb") as file:
+            model = pickle.load(file)
+        return model
+    except FileNotFoundError:
+        st.error("❌ Model file 'best_churn_model.pkl' not found. Please upload it to the repo.")
+        return None
 
 model = load_model()
-st.success("✅ Model loaded successfully!")
 
-# ---------------- UI LAYOUT ----------------
-col1, col2 = st.columns(2)
+if model:
+    st.success("✅ Model loaded successfully!")
 
-with col1:
-    st.subheader("👤 Customer Demographics")
-    gender = st.selectbox("Gender", ["Male", "Female"])
-    senior_citizen = st.selectbox("Senior Citizen", ["No", "Yes"])
-    partner = st.selectbox("Partner", ["No", "Yes"])
-    dependents = st.selectbox("Dependents", ["No", "Yes"])
+    # ---------------- UI LAYOUT ----------------
+    col1, col2 = st.columns(2)
 
-with col2:
-    st.subheader("💳 Account Information")
-    tenure = st.slider("Tenure (months)", 0, 72, 12)
-    monthly_charges = st.number_input(
-        "Monthly Charges ($)",
-        min_value=0.0,
-        max_value=200.0,
-        value=70.0
-    )
+    with col1:
+        st.subheader("👤 Customer Demographics")
+        gender = st.selectbox("Gender", ["Male", "Female"])
+        senior_citizen = st.selectbox("Senior Citizen", ["No", "Yes"])
+        partner = st.selectbox("Partner", ["No", "Yes"])
+        dependents = st.selectbox("Dependents", ["No", "Yes"])
 
-# ---------------- PREDICTION ----------------
-if st.button("🔮 Predict Churn", type="primary"):
-
-    # Create input dataframe
-    input_data = {
-        "gender": gender,
-        "SeniorCitizen": 1 if senior_citizen == "Yes" else 0,
-        "Partner": 1 if partner == "Yes" else 0,
-        "Dependents": 1 if dependents == "Yes" else 0,
-        "tenure": tenure,
-        "MonthlyCharges": monthly_charges
-    }
-
-    input_df = pd.DataFrame([input_data])
-
-    # One-hot encoding
-    input_encoded = pd.get_dummies(input_df)
-
-    # Align with model features (IMPORTANT FIX)
-    try:
-        input_encoded = input_encoded.reindex(
-            columns=model.feature_names_in_,
-            fill_value=0
+    with col2:
+        st.subheader("💳 Account Information")
+        tenure = st.slider("Tenure (months)", 0, 72, 12)
+        monthly_charges = st.number_input(
+            "Monthly Charges ($)",
+            min_value=0.0,
+            max_value=200.0,
+            value=70.0
         )
-    except:
-        pass  # if model doesn't support feature_names_in_
 
-    # Prediction
-    prediction = model.predict(input_encoded)[0]
-    probability = model.predict_proba(input_encoded)[0]
-    churn_prob = probability[1] * 100
+    # ---------------- PREDICTION ----------------
+    if st.button("🔮 Predict Churn", type="primary"):
+        # Create input dataframe
+        input_data = {
+            "gender": gender,
+            "SeniorCitizen": 1 if senior_citizen == "Yes" else 0,
+            "Partner": 1 if partner == "Yes" else 0,
+            "Dependents": 1 if dependents == "Yes" else 0,
+            "tenure": tenure,
+            "MonthlyCharges": monthly_charges
+        }
 
-    # ---------------- OUTPUT ----------------
-    st.subheader("📌 Result")
+        input_df = pd.DataFrame([input_data])
 
-    if prediction == 1:
-        st.error("🚨 HIGH RISK: Customer likely to churn")
-        st.metric("Churn Probability", f"{churn_prob:.1f}%")
-    else:
-        st.success("✅ LOW RISK: Customer likely to stay")
-        st.metric("Retention Probability", f"{100 - churn_prob:.1f}%")
+        # One-hot encoding
+        input_encoded = pd.get_dummies(input_df)
+
+        # Align with model features
+        # Note: If your model was trained on more columns (like 'gender_Male'), 
+        # reindex will handle filling them with 0.
+        if hasattr(model, 'feature_names_in_'):
+            input_encoded = input_encoded.reindex(
+                columns=model.feature_names_in_,
+                fill_value=0
+            )
+
+        # Prediction
+        prediction = model.predict(input_encoded)[0]
+        probability = model.predict_proba(input_encoded)[0]
+        churn_prob = probability[1] * 100
+
+        # ---------------- OUTPUT ----------------
+        st.divider()
+        st.subheader("📌 Result")
+
+        res_col1, res_col2 = st.columns(2)
+
+        with res_col1:
+            if prediction == 1:
+                st.error("🚨 HIGH RISK: Customer likely to churn")
+                st.metric("Churn Probability", f"{churn_prob:.1f}%")
+            else:
+                st.success("✅ LOW RISK: Customer likely to stay")
+                st.metric("Retention Probability", f"{100 - churn_prob:.1f}%")
+
+        with res_col2:
+            # Simple Gauge Chart using Plotly
+            fig = go.Figure(go.Indicator(
+                mode = "gauge+number",
+                value = churn_prob,
+                title = {'text': "Churn Risk %"},
+                gauge = {
+                    'axis': {'range': [0, 100]},
+                    'bar': {'color': "red" if churn_prob > 50 else "green"},
+                    'steps': [
+                        {'range': [0, 50], 'color': "lightgray"},
+                        {'range': [50, 100], 'color': "gray"}]
+                }
+            ))
+            st.plotly_chart(fig, use_container_width=True)
+else:
+    st.info("👋 Awaiting model file to begin predictions.")
