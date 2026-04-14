@@ -3,3 +3,4 @@ xgboost
 matplotlib
 pandas
 numpy
+plotly
