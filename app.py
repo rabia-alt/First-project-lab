@@ -3,7 +3,8 @@ import pandas as pd
 import numpy as np
 import pickle
 import plotly.graph_objects as go
-
+import os
+os.system("pip install plotly")
 # Page configuration
 st.set_page_config(
     page_title='Customer Churn Predictor',
