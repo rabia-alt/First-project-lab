@@ -39,6 +39,7 @@ with col1:
 with col2:
     st.subheader('Account Information')
     tenure = st.slider('Tenure (months)', 0, 72, 12)
+
     monthly_charges = st.number_input(
         'Monthly Charges ($)',
         min_value=0.0,
@@ -47,51 +48,51 @@ with col2:
     )
 
 # Prediction button
-# Prediction button
 if st.button('Predict Churn', type='primary'):
 
     # Create input dataframe
-    input_data = {
+    input_data = pd.DataFrame([{
         'gender': gender,
         'SeniorCitizen': 1 if senior_citizen == 'Yes' else 0,
         'Partner': partner,
         'Dependents': dependents,
         'tenure': tenure,
         'MonthlyCharges': monthly_charges
-    }
+    }])
 
-    input_df = pd.DataFrame([input_data])
+    # Encode categorical variables
+    input_encoded = pd.get_dummies(input_data)
 
-    # Encode input
-    input_encoded = pd.get_dummies(input_df)
-
-    # Align columns with model
-    try:
+    # Align with model columns safely
+    if hasattr(model, "feature_names_in_"):
         model_columns = model.feature_names_in_
         input_encoded = input_encoded.reindex(columns=model_columns, fill_value=0)
-    except:
-        pass
 
-    # Prediction
+    # Prediction with safety check
     prediction = model.predict(input_encoded)[0]
-    probability = model.predict_proba(input_encoded)[0]
-    churn_prob = probability[1] * 100
-    retention_prob = 100 - churn_prob
+
+    if hasattr(model, "predict_proba"):
+        probability = model.predict_proba(input_encoded)[0]
+        churn_prob = float(probability[1]) * 100
+        retention_prob = 100 - churn_prob
+    else:
+        churn_prob = 0
+        retention_prob = 0
 
     # Layout for results
     col3, col4 = st.columns(2)
 
-    # 🔹 Metric Display
+    # Result display
     with col3:
         if prediction == 1:
-            st.error('HIGH RISK: Customer likely to churn')
+            st.error('⚠ HIGH RISK: Customer likely to churn')
         else:
-            st.success('LOW RISK: Customer likely to stay')
+            st.success('✅ LOW RISK: Customer likely to stay')
 
         st.metric("Churn Probability", f"{churn_prob:.1f}%")
         st.metric("Retention Probability", f"{retention_prob:.1f}%")
 
-    # 🔹 Gauge Chart
+    # Gauge Chart
     with col4:
         fig = go.Figure(go.Indicator(
             mode="gauge+number",
